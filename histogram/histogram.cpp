@@ -62,14 +62,13 @@ int writeCSVFile(vector<int> dists, string filename) {
 }
 
 int localMaxima(Point pt, Mat img) {
-    Mat cpy;
-    img.copyTo(cpy);
+    Mat cpy(img);
     cout << "localMaxima point is " << pt.x << " and " << pt.y << endl;
     int prev = int(cpy.at<uchar>(pt.y - 1, pt.x));
     int curr = int(cpy.at<uchar>(pt.y, pt.x));
     cout << "Passed intensity is " << curr << endl;
-    int next = int(cpy.at<uchar>(pt.y, pt.x + 1));
-    if (curr > prev && curr > next) {
+    int next = int(cpy.at<uchar>(pt.y + 1, pt.x));
+    if (curr < prev && curr < next) {
         return 1;
     } else {
         return 0;
@@ -77,12 +76,12 @@ int localMaxima(Point pt, Mat img) {
 }
 
 int isTrough(Point pt, Mat img) {
-    Mat sub;
-    int val = int(img.at<uchar>(pt.y, pt.x));
+    Mat cpy(img);
+    int val = int(cpy.at<uchar>(pt.y, pt.x));
     double min;
     double max;
     Point min_pt(0,0), max_pt(0,0);
-    img(Rect(pt.x, pt.y - 1, 1, 3)).copyTo(sub);
+    Mat sub(cpy, Rect(pt.x, pt.y - 1, 1, 3));
     minMaxLoc(sub, &min, &max, &min_pt, &max_pt);
     if (std::abs(val - max) < 3) {
         return 1;
@@ -136,7 +135,7 @@ int main(int argc, char** argv) {
         // int nextIntensity = (int)rbg.at<uchar>(rbg.cols/2, i + 1);
         Point curr = Point(transect, i);
         
-        if (currIntensity < prevIntensity && currIntensity < nextIntensity) {
+        if (isTroughBasic(curr, rbg)) {
             minima.push_back(Point(i, graph_h - currIntensity));
             drawMarker(rbg, Point(transect, i), Scalar(0,0,255), MARKER_STAR, 5, 1);
             troughs.push_back(curr);
