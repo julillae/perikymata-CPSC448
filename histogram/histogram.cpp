@@ -81,9 +81,9 @@ int isTrough(Point pt, Mat img) {
     double min;
     double max;
     Point min_pt(0,0), max_pt(0,0);
-    Mat sub(cpy, Rect(pt.x, pt.y - 1, 1, 3));
+    Mat sub(cpy, Rect(pt.x, pt.y - 1, 3, 3));
     minMaxLoc(sub, &min, &max, &min_pt, &max_pt);
-    if (std::abs(val - max) < 3) {
+    if (std::abs(val - min) < 3) {
         return 1;
     } else {
         return 0;
@@ -135,9 +135,8 @@ int main(int argc, char** argv) {
         // int nextIntensity = (int)rbg.at<uchar>(rbg.cols/2, i + 1);
         Point curr = Point(transect, i);
         
-        if (isTroughBasic(curr, rbg)) {
+        if (isTrough(curr, rbg)) {
             minima.push_back(Point(i, graph_h - currIntensity));
-            drawMarker(rbg, Point(transect, i), Scalar(0,0,255), MARKER_STAR, 5, 1);
             troughs.push_back(curr);
             cout << "Point is " << curr.x << " and " << curr.y << endl;
         }
@@ -149,6 +148,7 @@ int main(int argc, char** argv) {
     mixChannels( in_h, 3, &peaks, 1, from_to_h, 3 );
 
     for ( int i = 0; i < minima.size(); i++) {
+        drawMarker(rbg, troughs[i], Scalar(0,0,255), MARKER_STAR, 5, 1);
         drawMarker(peaks, minima[i], Scalar(0,0,255), MARKER_STAR, 20, 1);
     }
 
