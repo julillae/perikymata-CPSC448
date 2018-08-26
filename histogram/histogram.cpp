@@ -44,6 +44,22 @@ vector<int> measurePixelDistance(vector<Point> points) {
     return distances;
 }
 
+void filterPlateaus(vector<int> &dist, vector<Point> &troughs, vector<Point> &minima) {
+    vector<Point> result;
+    int i = 1;
+    while (i < troughs.size()) {
+        int prev = troughs[i-1].y;
+        int curr = troughs[i].y;
+        if (std::abs(prev - curr) < 10) {
+            troughs.erase(troughs.begin() + i);
+            minima.erase(minima.begin() + i);
+            dist.erase(dist.begin() + i - 1);
+        } else {
+            i++;
+        }
+    }
+}
+
 int writeCSVFile(vector<int> dists, string filename) {
     if (dists.size() > 0) {
         const char* file = "distances.csv";
@@ -68,7 +84,24 @@ int localMaxima(Point pt, Mat img) {
     int curr = int(cpy.at<uchar>(pt.y, pt.x));
     cout << "Passed intensity is " << curr << endl;
     int next = int(cpy.at<uchar>(pt.y + 1, pt.x));
-    if (curr < prev && curr < next) {
+    if (curr > prev + 1 && curr > next + 1) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+int localMinimaFilter(Point pt, Mat img) {
+    Mat cpy(img);
+    // int prev = int(cpy.at<uchar>(pt.y - 3, pt.x));
+    // int next = int(cpy.at<uchar>(pt.y + 3, pt.x));
+    int val = int(cpy.at<uchar>(pt.y, pt.x));
+    double min;
+    double max;
+    Point min_pt(0,0), max_pt(0,0);
+    Mat sub(cpy, Rect(pt.x, pt.y - 1, 1, 6));
+    minMaxLoc(sub, &min, &max, &min_pt, &max_pt);
+    if (std::abs(val - min) < 10 && std::abs(val - max) > 25) {
         return 1;
     } else {
         return 0;
@@ -76,18 +109,9 @@ int localMaxima(Point pt, Mat img) {
 }
 
 int isTrough(Point pt, Mat img) {
-    Mat cpy(img);
-    int val = int(cpy.at<uchar>(pt.y, pt.x));
-    double min;
-    double max;
-    Point min_pt(0,0), max_pt(0,0);
-    Mat sub(cpy, Rect(pt.x, pt.y - 1, 3, 3));
-    minMaxLoc(sub, &min, &max, &min_pt, &max_pt);
-    if (std::abs(val - min) < 3) {
-        return 1;
-    } else {
-        return 0;
-    }
+    Point left = Point(pt.x -1, pt.y);
+    Point right = Point(pt.x + 1, pt.y);
+    return localMinimaFilter(pt, img) && (localMinimaFilter(left, img) || localMinimaFilter(right, img));
 }
 
 int isTroughBasic(Point pt, Mat img) {
@@ -100,9 +124,9 @@ int isTroughBasic(Point pt, Mat img) {
 
 int main(int argc, char** argv) {
     namedWindow("Original", WINDOW_NORMAL);
-    //namedWindow("Hist", WINDOW_NORMAL);
-    //namedWindow("Gray", WINDOW_NORMAL);
-    //namedWindow("Peaks", WINDOW_NORMAL);
+    // namedWindow("Hist", WINDOW_NORMAL);
+    // namedWindow("Gray", WINDOW_NORMAL);
+   //  namedWindow("Peaks", WINDOW_NORMAL);
     const char* filename = argc >=2 ? argv[1] : "../data/ALB51-LLC-13.tif";
     src = imread( filename, IMREAD_COLOR );
     if (src.empty()) {
@@ -115,13 +139,14 @@ int main(int argc, char** argv) {
     int i = 5;
     bilateralFilter ( src, rbg, i, i*2, i/2 );
     // GaussianBlur(rbg, rbg, Size(3,3), 0);
+
     bool uniform = true, accumulate = false;
     int graph_w = rbg.rows, graph_h = 260;
     Mat histImage( graph_h, graph_w, CV_32F, Scalar( 0,0,0) );
     vector<Point> minima;
     vector<Point> troughs;
     int transect = rbg.cols/2;
-    for( int i = 1; i < rbg.rows-4; i++ )
+    for( int i = 1; i < rbg.rows-5; i++ )
     {
         
         int currIntensity = int(rbg.at<uchar>(i, transect));
@@ -131,8 +156,7 @@ int main(int argc, char** argv) {
               Point(i, graph_h - currIntensity),
               Scalar( 255, 255, 255), 2, 8, 0  );
         
-        cout << "Intensity is " << currIntensity << endl;
-        // int nextIntensity = (int)rbg.at<uchar>(rbg.cols/2, i + 1);
+        // cout << "Intensity is " << currIntensity << endl;
         Point curr = Point(transect, i);
         
         if (isTrough(curr, rbg)) {
@@ -141,7 +165,11 @@ int main(int argc, char** argv) {
             cout << "Point is " << curr.x << " and " << curr.y << endl;
         }
     }
-
+    cout << "Finished iteration" << endl;
+    vector<int> distances =  measurePixelDistance(troughs);
+    cout << "Finished measuring pixel distance" << endl;
+    filterPlateaus(distances, troughs, minima);
+    cout << "Finished filtering plateaus" << endl;
     Mat peaks(histImage.rows, histImage.cols, CV_32FC3);
     Mat in_h[] = { histImage.clone(), histImage.clone(), histImage.clone() };
     int from_to_h[] = { 0,0, 1,1, 2,2 };
@@ -152,8 +180,6 @@ int main(int argc, char** argv) {
         drawMarker(peaks, minima[i], Scalar(0,0,255), MARKER_STAR, 20, 1);
     }
 
-
-    vector<int> distances =  measurePixelDistance(troughs);
     cout << "Distance vector length: " << distances.size() << endl;
     writeCSVFile(distances, filename);
     
