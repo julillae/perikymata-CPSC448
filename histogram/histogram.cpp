@@ -9,21 +9,19 @@ using namespace std;
 using namespace cv;
 
 Mat src;
-Mat rbg;
+Mat dest;
 
 string stripName(string filename) {
     // Remove directory if present.
-    // Do this before extension removal incase directory has a period character.
+    // Do this before extension removal in case directory has a period character.
     const size_t last_slash_idx = filename.find_last_of("\\/");
-    if (std::string::npos != last_slash_idx)
-    {
+    if (std::string::npos != last_slash_idx) {
         filename.erase(0, last_slash_idx + 1);
     }
 
     // Remove extension if present.
     const size_t period_idx = filename.rfind('.');
-    if (std::string::npos != period_idx)
-    {
+    if (std::string::npos != period_idx) {
         filename.erase(period_idx);
     }
     
@@ -41,16 +39,17 @@ vector<int> measurePixelDistance(vector<Point> points) {
         distances.push_back(distance);
       //  cout << "Added " << distance << " distance" << endl;
     }
+
     return distances;
 }
 
 void filterPlateaus(vector<int> &dist, vector<Point> &troughs, vector<Point> &minima) {
     vector<Point> result;
     int i = 1;
-    while (i < troughs.size()) {
+    while (i < dist.size()) {
         int prev = troughs[i-1].y;
         int curr = troughs[i].y;
-        if (std::abs(prev - curr) < 10) {
+        if (std::abs(prev - curr) < 10 || dist[i-1] < 4 ) {
             troughs.erase(troughs.begin() + i);
             minima.erase(minima.begin() + i);
             dist.erase(dist.begin() + i - 1);
@@ -62,9 +61,9 @@ void filterPlateaus(vector<int> &dist, vector<Point> &troughs, vector<Point> &mi
 
 int writeCSVFile(vector<int> dists, string filename) {
     if (dists.size() > 0) {
-        const char* file = "distances.csv";
+        string file = filename + "_distances.csv";
         ofstream myfile;
-        myfile.open(file);
+        myfile.open(file.c_str());
         myfile << dists[0];
         for (int i = 1; i < dists.size(); i++) {
             myfile << ",";
@@ -93,15 +92,13 @@ int localMaxima(Point pt, Mat img) {
 
 int localMinimaFilter(Point pt, Mat img) {
     Mat cpy(img);
-    // int prev = int(cpy.at<uchar>(pt.y - 3, pt.x));
-    // int next = int(cpy.at<uchar>(pt.y + 3, pt.x));
     int val = int(cpy.at<uchar>(pt.y, pt.x));
     double min;
     double max;
     Point min_pt(0,0), max_pt(0,0);
     Mat sub(cpy, Rect(pt.x, pt.y - 1, 1, 6));
     minMaxLoc(sub, &min, &max, &min_pt, &max_pt);
-    if (std::abs(val - min) < 10 && std::abs(val - max) > 25) {
+    if (std::abs(val - min) < 5 && std::abs(val - max) > 15) {
         return 1;
     } else {
         return 0;
@@ -118,40 +115,79 @@ int isTroughBasic(Point pt, Mat img) {
     // cout << "isTrough Point is " << pt.x << " and " << pt.y << endl;
     Point left = Point(pt.x -1, pt.y);
     Point right = Point(pt.x + 1, pt.y);
-    return localMaxima(pt, img) && (localMaxima(left, img) || localMaxima(right, img));
+    return localMaxima(pt, img) && (localMaxima(left, img) && localMaxima(right, img));
 }
 
+void transformKMeans(Mat org, Mat kmeans_image) {
+    Mat img(org);
+    Mat samples(img.rows * img.cols, 3, CV_32F);
+    for( int y = 0; y < img.rows; y++ )
+        for( int x = 0; x < img.cols; x++ )
+        for( int z = 0; z < 3; z++)
+            samples.at<float>(y + x*img.rows, z) = img.at<Vec3b>(y,x)[z];
+    cout << "Finished samples" << endl;
+
+    int clusterCount = 10;
+    Mat labels;
+    int attempts = 5;
+    Mat centers;
+    kmeans(samples, clusterCount, labels, TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 100, 0.01), attempts, KMEANS_PP_CENTERS, centers );
+    cout << "About to fill kmeans image" << endl;
+    for( int y = 0; y < img.rows; y++ ) {
+        for( int x = 0; x < img.cols; x++ ) { 
+        int cluster_idx = labels.at<int>(y + x*img.rows,0);
+        kmeans_image.at<Vec3b>(y,x)[0] = centers.at<float>(cluster_idx, 0);
+        kmeans_image.at<Vec3b>(y,x)[1] = centers.at<float>(cluster_idx, 1);
+        kmeans_image.at<Vec3b>(y,x)[2] = centers.at<float>(cluster_idx, 2);
+        }
+    }
+    cout << "Returning kmeans image" << endl;
+}
+
+void printHelp() {
+    printf(" Usage: ./histogram [image_name] [transect --default width/2] \n");
+}
 
 int main(int argc, char** argv) {
     namedWindow("Original", WINDOW_NORMAL);
     // namedWindow("Hist", WINDOW_NORMAL);
     // namedWindow("Gray", WINDOW_NORMAL);
    //  namedWindow("Peaks", WINDOW_NORMAL);
-    const char* filename = argc >=2 ? argv[1] : "../data/ALB51-LLC-13.tif";
-    src = imread( filename, IMREAD_COLOR );
-    if (src.empty()) {
+   char* filename;
+   int transect;
+   if (argc >= 2) {
+        filename = argv[1];
+        src = imread( filename, IMREAD_COLOR );
+        if (src.empty()) {
             printf(" Error opening image\n");
-            printf(" Usage: ./histogram [image_name -- default ../data/ALB51-LLC-13.tif] \n");
+            printHelp();
             return -1;
         }
+        transect = argc >=3 ? atoi(argv[2]) : src.cols/2;
+        printf(" Transect is %i \n", transect);
+        if (transect >= src.cols || transect <= 0) {
+            printf(" Transect is out of bounds: the width of %s is %i \n", filename, src.cols);
+            printHelp();
+            return -1;
+        }
+   } else {
+       printHelp();
+       return -1;
+   }    
 
     cvtColor( src, src, COLOR_BGR2GRAY );
-    int i = 5;
-    bilateralFilter ( src, rbg, i, i*2, i/2 );
-    // GaussianBlur(rbg, rbg, Size(3,3), 0);
+    int i = 10;
+    bilateralFilter ( src, dest, i, i*2, i/2 );
 
-    bool uniform = true, accumulate = false;
-    int graph_w = rbg.rows, graph_h = 260;
+    int graph_w = dest.rows, graph_h = 260;
     Mat histImage( graph_h, graph_w, CV_32F, Scalar( 0,0,0) );
     vector<Point> minima;
     vector<Point> troughs;
-    int transect = rbg.cols/2;
-    for( int i = 1; i < rbg.rows-5; i++ )
-    {
+    for( int i = 1; i < dest.rows-5; i++ ) {
         
-        int currIntensity = int(rbg.at<uchar>(i, transect));
-        int prevIntensity = int(rbg.at<uchar>(i - 1, transect));
-        int nextIntensity = int(rbg.at<uchar>(i + 1, transect));
+        int currIntensity = int(dest.at<uchar>(i, transect));
+        int prevIntensity = int(dest.at<uchar>(i - 1, transect));
+        int nextIntensity = int(dest.at<uchar>(i + 1, transect));
         line( histImage, Point(i-1, graph_h - prevIntensity),
               Point(i, graph_h - currIntensity),
               Scalar( 255, 255, 255), 2, 8, 0  );
@@ -159,7 +195,7 @@ int main(int argc, char** argv) {
         // cout << "Intensity is " << currIntensity << endl;
         Point curr = Point(transect, i);
         
-        if (isTrough(curr, rbg)) {
+        if (isTrough(curr, dest)) {
             minima.push_back(Point(i, graph_h - currIntensity));
             troughs.push_back(curr);
             cout << "Point is " << curr.x << " and " << curr.y << endl;
@@ -174,21 +210,23 @@ int main(int argc, char** argv) {
     Mat in_h[] = { histImage.clone(), histImage.clone(), histImage.clone() };
     int from_to_h[] = { 0,0, 1,1, 2,2 };
     mixChannels( in_h, 3, &peaks, 1, from_to_h, 3 );
-
     for ( int i = 0; i < minima.size(); i++) {
-        drawMarker(rbg, troughs[i], Scalar(0,0,255), MARKER_STAR, 5, 1);
+        drawMarker(dest, troughs[i], Scalar(0,0,255), MARKER_STAR, 5, 1);
         drawMarker(peaks, minima[i], Scalar(0,0,255), MARKER_STAR, 20, 1);
     }
+    
+    string basename = stripName(filename);
 
     cout << "Distance vector length: " << distances.size() << endl;
-    writeCSVFile(distances, filename);
-    
-    string peaksName = stripName(filename) + "_peaks";
-    imwrite("../data/" + peaksName + ".tif", peaks);
+    writeCSVFile(distances, basename);
+    string pointsName = basename + "_points";
+    string peaksName = basename + "_peaks";
+    imwrite(pointsName + ".tif", dest);
+    imwrite(peaksName + ".tif", peaks);
     cout << minima.size() << endl;
     imshow("Original", src );
     imshow("Hist", histImage );
-    imshow("Gray", rbg);
+    imshow("Gray", dest);
     imshow("Peaks", peaks);
     waitKey(0);
     return 0;
