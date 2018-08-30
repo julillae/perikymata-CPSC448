@@ -59,15 +59,34 @@ void filterPlateaus(vector<int> &dist, vector<Point> &troughs, vector<Point> &mi
     }
 }
 
-int writeCSVFile(vector<int> dists, string filename) {
+int writeDistancesCSV(vector<int> dists, string filename) {
     if (dists.size() > 0) {
         string file = filename + "_distances.csv";
         ofstream myfile;
         myfile.open(file.c_str());
         myfile << dists[0];
         for (int i = 1; i < dists.size(); i++) {
-            myfile << ",";
+            myfile << "\n";
             myfile << dists[i];
+        }
+        myfile << endl;
+        myfile.close();
+    } else {
+        return 0;
+    }
+}
+
+int writePointssCSV(vector<Point> points, string filename) {
+    if (points.size() > 0) {
+        string file = filename + "_points.csv";
+        ofstream myfile;
+        myfile.open(file.c_str());
+        myfile << "x,y";
+        for (int i = 0; i < points.size(); i++) {
+            myfile << ",\n";
+            myfile << points[i].x;
+            myfile << ",";
+            myfile << points[i].y;
         }
         myfile << endl;
         myfile.close();
@@ -218,7 +237,8 @@ int main(int argc, char** argv) {
     string basename = stripName(filename);
 
     cout << "Distance vector length: " << distances.size() << endl;
-    writeCSVFile(distances, basename);
+    writeDistancesCSV(distances, basename);
+    writePointssCSV(troughs, basename);
     string pointsName = basename + "_points";
     string peaksName = basename + "_peaks";
     imwrite(pointsName + ".tif", dest);
