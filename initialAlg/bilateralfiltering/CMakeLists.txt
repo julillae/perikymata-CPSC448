@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( bilateralfiltering )
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+add_executable( bilateralfiltering bilateralfiltering.cpp )
+target_link_libraries( bilateralfiltering ${OpenCV_LIBS} )
