@@ -97,10 +97,8 @@ int writePointssCSV(vector<Point> points, string filename) {
 
 int localMaxima(Point pt, Mat img) {
     Mat cpy(img);
-    cout << "localMaxima point is " << pt.x << " and " << pt.y << endl;
     int prev = int(cpy.at<uchar>(pt.y - 1, pt.x));
     int curr = int(cpy.at<uchar>(pt.y, pt.x));
-    cout << "Passed intensity is " << curr << endl;
     int next = int(cpy.at<uchar>(pt.y + 1, pt.x));
     if (curr > prev + 1 && curr > next + 1) {
         return 1;
@@ -131,7 +129,6 @@ int isTrough(Point pt, Mat img) {
 }
 
 int isTroughBasic(Point pt, Mat img) {
-    // cout << "isTrough Point is " << pt.x << " and " << pt.y << endl;
     Point left = Point(pt.x -1, pt.y);
     Point right = Point(pt.x + 1, pt.y);
     return localMaxima(pt, img) && (localMaxima(left, img) && localMaxima(right, img));
@@ -144,14 +141,12 @@ void transformKMeans(Mat org, Mat kmeans_image) {
         for( int x = 0; x < img.cols; x++ )
         for( int z = 0; z < 3; z++)
             samples.at<float>(y + x*img.rows, z) = img.at<Vec3b>(y,x)[z];
-    cout << "Finished samples" << endl;
 
     int clusterCount = 10;
     Mat labels;
     int attempts = 5;
     Mat centers;
     kmeans(samples, clusterCount, labels, TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 100, 0.01), attempts, KMEANS_PP_CENTERS, centers );
-    cout << "About to fill kmeans image" << endl;
     for( int y = 0; y < img.rows; y++ ) {
         for( int x = 0; x < img.cols; x++ ) { 
         int cluster_idx = labels.at<int>(y + x*img.rows,0);
@@ -160,7 +155,6 @@ void transformKMeans(Mat org, Mat kmeans_image) {
         kmeans_image.at<Vec3b>(y,x)[2] = centers.at<float>(cluster_idx, 2);
         }
     }
-    cout << "Returning kmeans image" << endl;
 }
 
 void printHelp() {
@@ -169,9 +163,6 @@ void printHelp() {
 
 int main(int argc, char** argv) {
     namedWindow("Original", WINDOW_NORMAL);
-    // namedWindow("Hist", WINDOW_NORMAL);
-    // namedWindow("Gray", WINDOW_NORMAL);
-   //  namedWindow("Peaks", WINDOW_NORMAL);
    char* filename;
    int transect;
    if (argc >= 2) {
@@ -183,7 +174,6 @@ int main(int argc, char** argv) {
             return -1;
         }
         transect = argc >=3 ? atoi(argv[2]) : src.cols/2;
-        printf(" Transect is %i \n", transect);
         if (transect >= src.cols || transect <= 0) {
             printf(" Transect is out of bounds: the width of %s is %i \n", filename, src.cols);
             printHelp();
@@ -211,13 +201,11 @@ int main(int argc, char** argv) {
               Point(i, graph_h - currIntensity),
               Scalar( 255, 255, 255), 2, 8, 0  );
         
-        // cout << "Intensity is " << currIntensity << endl;
         Point curr = Point(transect, i);
         
         if (isTrough(curr, dest)) {
             minima.push_back(Point(i, graph_h - currIntensity));
             troughs.push_back(curr);
-            cout << "Point is " << curr.x << " and " << curr.y << endl;
         }
     }
     cout << "Finished iteration" << endl;
