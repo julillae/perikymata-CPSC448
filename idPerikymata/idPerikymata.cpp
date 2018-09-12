@@ -32,12 +32,9 @@ vector<int> measurePixelDistance(vector<Point> points) {
     vector<int> distances;
     for (int i = 1; i < points.size(); i++) {
         Point pt = points[i];
-       // cout << "Point is " << pt.x << " and " << pt.y << endl;
         Point last = points[i-1];
-       // cout << "Last is " << pt.x << " and " << pt.y << endl;
         int distance = pt.y - last.y;
         distances.push_back(distance);
-      //  cout << "Added " << distance << " distance" << endl;
     }
 
     return distances;
@@ -208,7 +205,6 @@ int main(int argc, char** argv) {
             troughs.push_back(curr);
         }
     }
-    cout << "Finished iteration" << endl;
     vector<int> distances =  measurePixelDistance(troughs);
     cout << "Finished measuring pixel distance" << endl;
     filterPlateaus(distances, troughs, minima);
@@ -224,18 +220,13 @@ int main(int argc, char** argv) {
     
     string basename = stripName(filename);
 
-    cout << "Distance vector length: " << distances.size() << endl;
     writeDistancesCSV(distances, basename);
     writePointssCSV(troughs, basename);
     string pointsName = basename + "_points";
     string peaksName = basename + "_peaks";
     imwrite(pointsName + ".tif", dest);
     imwrite(peaksName + ".tif", peaks);
-    cout << minima.size() << endl;
-    imshow("Original", src );
-    imshow("Hist", histImage );
-    imshow("Gray", dest);
-    imshow("Peaks", peaks);
-    waitKey(0);
+    cout << "Number of perikymata identified: " << minima.size() << endl;
+    cout << "Finished!" << endl;
     return 0;
 }
